@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Exec=emusplash
+Icon=org.emusplash.frontend
+Terminal=false
+Type=Application
+StartupNotify=true
+StartupWMClass=emusplash
+Hidden=false
+Categories=Game;Emulator;
+Name=EmuSPLASH
+GenericName=Gaming Frontend
+Keywords=emulator;emulation;front-end;frontend;

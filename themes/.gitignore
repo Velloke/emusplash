@@ -1,0 +1,10 @@
+*
+!.gitignore
+!linear-es-de
+!linear-es-de/**
+!modern-es-de
+!modern-es-de/**
+!slate-es-de
+!slate-es-de/**
+!iconic-es-de
+!iconic-es-de/**

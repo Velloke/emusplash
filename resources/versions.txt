@@ -1,0 +1,228 @@
+// The versions of this build, newest first. Every patch adds an entry at the top.
+// "# name | date | title" starts a version, each "* " line is one change. A change goes on
+// over the next lines if they start with two spaces.
+
+# patch48 | 2026-11-16 | Video previews build with FFmpeg 4
+* The previews of the media center (MediaThumbnails) build with FFmpeg 4 too (Ubuntu 22.04 of
+  the AppImage), where av_find_best_stream gives a codec that isn't const.
+
+# patch47 | 2026-11-16 | The bundled libraries are in the repository
+* external/.gitignore (of ES-DE) kept only the first level of the bundled libraries in git:
+  the sources of rlottie and the CMake files of lunasvg were missing in the repository, and the
+  AppImage, built from the last commit, stopped at cmake. Only what CMake makes when it builds
+  them is left out now.
+
+# patch44 | 2026-11-16 | Dependencies in ~/EmuSPLASH/dependencies
+* At startup EmuSPLASH checks its dependencies in the background, the same on every
+  distribution (a short notification while something is downloaded, the result in the log):
+  - yt-dlp: the standalone one of GitHub (no Python needed) in dependencies/bin/yt-dlp. It's
+    downloaded when missing and updates itself once a week (yt-dlp -U). The trailers use it
+    first, then EMUSPLASH_YTDLP or the yt-dlp of the system if the download failed. The
+    earlier copy in ~/EmuSPLASH/yt-dlp (it needed Python) is removed.
+  - Deno: yt-dlp needs a JavaScript runtime for YouTube. Without deno in the system it's
+    downloaded to dependencies/bin/deno, yt-dlp finds it there.
+  - Python 3: the one of the system is used. Without it a standalone Python 3
+    (python-build-standalone, 3.12) is downloaded to dependencies/python and the add-ons use it.
+
+# patch43 | 2026-11-15 | Settings follow the move, Dim screensaver, new icon
+* When ~/ES-DE is moved to ~/EmuSPLASH, the paths in settings/es_settings.xml change too
+  (MediaDirectory still pointed to ~/ES-DE/downloaded_media, so the scraper made ~/ES-DE again).
+* The screensaver type is Dim by default (it was Video). An es_settings.xml that exists keeps
+  its value, there it's changed in UI settings > Screensaver settings.
+* The icon of the application is the ES of the EmuSPLASH logo, with a transparent background
+  (the window icon and the desktop icon).
+
+# patch42 | 2026-11-15 | EmuSPLASH 1.0.0
+* The application is EmuSPLASH, version 1.0.0: the program is emusplash (/usr/bin/emusplash,
+  /usr/share/emusplash), with a new splash screen, icon and desktop entry
+  (org.emusplash.frontend). It's based on ES-DE (MIT), see README.md and CREDITS.md.
+* RetroArch's settings file is emusplash.cfg (es-de.cfg is renamed), the copies of the
+  emulators' files are *.emusplash-backup (an earlier *.es-de-backup is renamed).
+* The launch commands Suspend EmuSPLASH and Keep EmuSPLASH running replace the ones named after
+  ES-DE, a game or system that had the old name keeps its choice.
+* No application updater (it checked the ES-DE releases). The theme downloader stays.
+* The default theme is Iconic (iconic-es-de), installed from themes/iconic-es-de without its
+  .git folder and the Windows scripts. When a configured theme is missing, Iconic is used,
+  then Linear.
+* Other settings has no RUN IN BACKGROUND (WHILE GAME IS LAUNCHED) any more, and the setting
+  is ignored: EmuSPLASH waits for the game, which the hotkeys need. With it on, close game did
+  nothing (RPCS3 on the HTPC didn't close). A launch command with %RUNINBACKGROUND% still runs
+  in the background.
+
+# patch39 | 2026-11-12 | RPCS3 closes at once
+* RPCS3 doesn't end when it's asked to (SIGTERM): close game kills it 0.3 seconds later, so
+  it closes with one press. Other emulators that don't end are killed after 2 seconds
+  instead of 5.
+
+# patch38 | 2026-11-12 | Several ROM directories, close game for every game
+* Other settings > ROMS DIRECTORY: the ROM directory and up to two more (ADD ANOTHER ROMS
+  DIRECTORY, a directory can be changed or removed). The folders of the systems are made in a
+  new directory as the first time, the games of all directories are in the same systems
+  (snes of every directory is one SNES), their media in the same folders. Games of the other
+  directories are kept in the gamelists with their full paths, also by the orphaned data
+  cleanup.
+* Close game reads the pads from /dev/input too, not only with SDL (SDL may not get the
+  buttons while the emulator has the focus), a combination counts after 50 ms instead of
+  150 ms. Pressing it again ends the game at once, a third time kills it. Also the processes
+  started by the game are ended (an AppImage or a launcher may not keep the output pipe).
+  An emulator that got the close hotkey gets 2 seconds to close itself instead of 4.
+* CLOSE GAME can also be START + a button. RetroArch takes its enable button from save state,
+  load state or fast forward first, close game with another button is done by EmuSPLASH.
+* The text of HOTKEYS is one text that scrolls by itself while it's selected.
+* RPCS3: PREFERRED SPU THREADS, ACCURATE RSX RESERVATION ACCESS, STRICT RENDERING MODE,
+  RELAXED ZCULL SYNC and ANTI-ALIASING (MSAA).
+
+# patch37 | 2026-11-11 | Emulator settings checked, Cemu and RetroArch, more hotkeys
+* Contains patch36, which didn't apply to the sources of patch35 (PlatformUtil.h).
+* The numbers of the Switch emulators are the ones of their sources: Eden has its own
+  resolutions (1X is 3, with 1.25X), filters (Lanczos, FSR is 6, Area) and two GPU accuracies
+  (Low, High), citron four (Low, Normal, High, Extreme) and only the first four filters (the
+  place of its FSR isn't known), suyu the 32:9 aspect ratio. Eden has RESOLUTION and SCALING
+  FILTER again.
+* RPCS3: SHADER MODE. PPSSPP: VSYNC (VerticalSync). Vita3K: GPU HIGH ACCURACY. The VSync and
+  FSR values of RPCS3 are the ones it writes (Disabled, Adaptive, Full, FidelityFX Super
+  Resolution).
+* ADVANCED GAME OPTIONS for more games: Cemu (gameProfiles/<title ID>.ini with the graphics
+  API, CPU mode and accurate shader MUL; the title ID from meta/meta.xml of a game folder or
+  from the title list of Cemu, so .wux and .wua work), PCSX2 with every format (.chd too) from
+  the game list of PCSX2 (cache/gamelist.cache), PPSSPP also with .cso files, Switch NSP files
+  without the title ID in the name (from the ticket in the NSP). AUTO shows the value of the
+  emulator. A new game file of PPSSPP also gets the controls.
+* RetroArch in EMULATOR SETTINGS and ADVANCED GAME OPTIONS: graphics driver, VSync, bilinear
+  filtering, integer scaling, aspect ratio, shaders, threaded video, run-ahead and rewind.
+  retroarch.cfg isn't changed: the settings are kept in ~/EmuSPLASH/retroarch (emusplash.cfg and
+  games/<system>/<game>.cfg) and given to RetroArch with --appendconfig. With Vulkan the
+  AppImage gets the libwayland-client of the system (LD_PRELOAD).
+* Hotkeys into RetroArch (~/EmuSPLASH/retroarch/hotkeys.cfg): the buttons are counted as its
+  joypad driver counts them, Select is the enable button, one press closes. RPCS3: the save
+  state hotkey presses its keyboard shortcut (Ctrl+S or its own) with XTest (libxtst6).
+  PCSX2 keeps the keyboard keys of a hotkey, the pad binding is added next to them. The
+  emulator gets 4 seconds to close itself only if the hotkeys were written into it.
+* Close game also works when SDL has no pad, the pad is then read from /dev/input.
+* Launch commands with escaped spaces (New\ Folder), flatpak run and %ENABLESHORTCUTS% are
+  recognized. Files of games get no *.emusplash-backup, and a file that doesn't end with a newline
+  stays so.
+
+# patch36 | 2026-11-11 | Emulator settings, game options and hotkeys
+* New module (es-app/src/emulators) that knows the settings files of Eden, citron, suyu, yuzu,
+  RPCS3, PCSX2, PPSSPP, Cemu and Vita3K, finds the emulator of a game from its launch command
+  (also of a shortcut) and changes only the lines of the settings it is asked to. The first
+  time a file is changed a copy is kept next to it (*.emusplash-backup).
+* Other settings > EMULATOR SETTINGS (first row): the emulators whose settings file exists,
+  each with its important settings (graphics API, resolution, aspect ratio, anti-aliasing,
+  anisotropic filtering, FSR, VSync, CPU and GPU accuracy, multicore, asynchronous shaders,
+  disk shader cache, force max clock, ASTC, and the CPU settings of RPCS3 and PCSX2). The
+  menu shows what is in the file of the emulator and writes the changes into it. A setting
+  that isn't in the file is "EMULATOR DEFAULT" and stays so unless changed.
+* Game options > ADVANCED GAME OPTIONS: the same settings for one game, AUTO keeps the one of
+  the emulator. They go into the files of the emulator for one game: custom/<title ID>.ini of
+  the Switch emulators (the title ID of the file name), custom_configs/config_<serial>.yml of
+  RPCS3 (from the shortcut or PARAM.SFO), gamesettings/<serial>_<CRC>.ini of PCSX2 (read from
+  .iso files) and <ID>_ppsspp.ini of PPSSPP (from UMD_DATA.BIN of .iso files or the file
+  name). Cemu and Vita3K have only the emulator settings.
+* Input device settings > HOTKEYS: close game, save state, load state and fast forward, each
+  Select with a button, two other combinations or off (default Select + B/Circle, R1, L1, R2).
+  Close game is watched by EmuSPLASH while the game runs and ends the emulator, with every
+  emulator. The hotkeys are also written into PCSX2, PPSSPP and the Switch emulators before a
+  game starts with them (row "Write the hotkeys into the emulators"); these get 4 seconds to
+  close themselves before EmuSPLASH ends them.
+
+# patch35 | 2026-11-10 | Added emulators aren't lost at the next start
+* An emulator added to a system went into the custom systems file with only the extensions
+  that file had (e.g. PS3 without .desktop). That entry then had no games and wasn't used, the
+  system was loaded from the bundled file, and the added emulator and the emulator chosen for
+  a game were gone after a restart.
+* Adding an emulator now also copies the missing extensions and emulators of the loaded system
+  into the custom entry. At the start, entries with added emulators that miss them are
+  completed, with the note "Repaired the emulators of ..., restart EmuSPLASH".
+* The row in Alternative emulators is "ADD APPIMAGE, .SH SCRIPT OR BIN FILE...".
+
+# patch34 | 2026-11-10 | Shortcut games with an added emulator
+* A game that is a shortcut (.desktop file, e.g. the PS3 games made by RPCS3) started with an
+  emulator that can't open shortcuts, like an RPCS3 from the custom emulators folder, failed
+  ("Invalid file or folder"). The emulator now gets the arguments of the shortcut instead,
+  which name the game (e.g. "%RPCS3_GAMEID%:BLES01807"), so it starts that game.
+* "flatpak run <id>" and "env VAR=x" in front of the program of the shortcut are skipped.
+
+# patch33 | 2026-11-10 | Compiled emulators in the custom emulators folder
+* The folder of Other settings > CUSTOM EMULATORS (was CUSTOM EMULATORS APPIMAGES) also finds
+  programs compiled for Linux, without an extension or with ".bin" (e.g. an RPCS3 built by
+  the user), not only AppImages. They are added to their systems like the AppImages, by the
+  name of the program (rpcs3 to PlayStation 3 with --no-gui).
+* Other programs of the folder of a compiled emulator, and libraries, are skipped without a
+  note in the log.
+
+# patch31 | 2026-11-09 | Leaving a trailer at once doesn't freeze
+* Closing a trailer right after it started could leave the picture standing and the buttons
+  dead: closing the player waited for YouTube. A file from the internet is now closed in the
+  background, the add-on streams and local files are closed as before.
+
+# patch30 | 2026-11-09 | Trailer played from the list
+* In the views List, Fanart and WideList, right on a movie or a series selects its trailer
+  sign (dark text on a light box) and the confirm button plays the trailer. Left or back goes
+  back to the title, up and down move on as before.
+* The help shows "play trailer" while the sign is selected.
+
+# patch29 | 2026-11-09 | Trailer sign in the Elementum lists
+* In the views List, Fanart and WideList of Elementum, a movie or a series that has the trailer
+  row in its options menu shows a play sign and "Trailer" after the title and the rating. If
+  the title is too long for both, only the play sign is shown.
+* Episodes, seasons and folders have no sign. The grid views are not changed.
+
+# patch21 | 2026-11-09 | Trailers with separate video and audio
+* YouTube often has no file with both the video and the audio any more ("Requested format is
+  not available"). The trailer now takes the best video up to 1080p and the audio separately,
+  the player adds the audio when the video has been opened.
+* When yt-dlp fails, the log has its whole answer (also the warnings).
+
+# patch20 | 2026-11-09 | Own yt-dlp in EmuSPLASH/yt-dlp
+* When no yt-dlp is found, EmuSPLASH downloads it to ~/EmuSPLASH/yt-dlp/yt-dlp (one file from the
+  releases of yt-dlp on GitHub, it runs with the Python 3 of the system). The trailer window
+  tells while it downloads.
+* That copy is used first. If it can't open a trailer, it's updated (yt-dlp -U) and tried
+  again, as YouTube changes often.
+* The error messages tell how to put yt-dlp there by hand, instead of pip, which Debian
+  doesn't allow.
+
+# patch19 | 2026-11-09 | Watch trailer without a TMDb API key
+* The trailer row is shown for every movie and series of Elementum, also without a TMDb API
+  key. With the key it is "Watch trailer from TMDb" (the trailers of TMDb), without it "Watch
+  trailer from YouTube": YouTube is searched for the title, the year and "official trailer".
+* If TMDb has no trailer for the title, YouTube is searched too.
+* The log tells which trailer is played.
+
+# patch18 | 2026-11-09 | Watch trailer as the first row
+* "Watch trailer from TMDb" is the first row of the options menu of a movie or series, so it
+  is seen without scrolling.
+* The log tells why the row is missing (no TMDb API key, no TMDb id in the address, an
+  episode or a season).
+
+# patch17 | 2026-11-09 | Watch trailer only for movies and series
+* The row in the options menu is called "Watch trailer from TMDb".
+* It is not shown for single episodes and seasons, only for the movie or the series itself.
+
+# patch16 | 2026-11-09 | Watch trailer in the Elementum menu
+* The options menu (context menu) of a movie or series of Elementum has a new row, Watch
+  trailer. It finds the trailer on TMDb (needs the TMDb API key of the Media settings, language
+  of the setting first, then English) and plays it in the player.
+* The address of the video is found with yt-dlp (searched in EmuSPLASH/dependencies/bin,
+  ~/.local/bin and PATH, or EMUSPLASH_YTDLP). Without it a message tells how to install it.
+* Nothing of Elementum is changed: the add-on and its requests are not used for the trailer,
+  and the player stores nothing about it (no progress, no watched state, no events to the
+  add-on). If anything fails only a message is shown.
+
+# patch4 | 2026-11-07 | Readable version details
+* The changes of a version are shown as one text in the menu frame, without a selected row,
+  and nothing is cut off.
+* Up and down scroll the text, held they go on scrolling, the shoulder buttons scroll a page.
+  A bar on the right shows where in the text the view is.
+
+# patch2 | 2026-11-06 | Shorter version list
+* The version list only has the versions of the new numbering, the earlier patches were
+  removed from it.
+
+# patch1 | 2026-11-06 | Version list
+* Utilities has a new row VERSIONS. It lists the versions from the newest to the oldest, and
+  selecting one shows what was done in it.
+* The list is read from the file versions.txt in the resources folder. Every patch adds its
+  own entry at the top of that file.

@@ -1,0 +1,23 @@
+# The bundled libraries are kept in the repository. Only what CMake makes when it builds them
+# in place is left out.
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+/Makefile
+/lunasvg/**/Makefile
+/rlottie/**/Makefile
+*Targets.cmake
+*Targets-*.cmake
+*ConfigVersion.cmake
+/lunasvg/lunasvgConfig.cmake
+/lunasvg/plutovg/plutovgConfig.cmake
+/rlottie/rlottieConfig.cmake
+/rlottie/config.h
+/lunasvg/lunasvg.pc
+/lunasvg/plutovg/plutovg.pc
+/rlottie/rlottie.pc
+*.a
+*.so
+*.so.*
+/SDL/
