@@ -6,6 +6,26 @@ built for Linux on the desktop and on a TV.
 It is based on ES-DE by Leon Styhre and Northwestern Software AB, released under the MIT
 license (see [LICENSE](LICENSE) and [CREDITS.md](CREDITS.md)).
 
+## Download
+
+[![Download the AppImage](https://img.shields.io/github/v/release/Velloke/emusplash?label=Download%20AppImage&style=for-the-badge)](https://github.com/Velloke/emusplash/releases/latest/download/EmuSPLASH-x86_64.AppImage)
+
+Download [EmuSPLASH-x86_64.AppImage](https://github.com/Velloke/emusplash/releases/latest/download/EmuSPLASH-x86_64.AppImage)
+(all versions and their changes: [Releases](https://github.com/Velloke/emusplash/releases)),
+then make it executable and run it:
+
+```
+chmod +x EmuSPLASH-x86_64.AppImage
+./EmuSPLASH-x86_64.AppImage
+```
+
+It runs on x86_64 with Debian 12+, Ubuntu 22.04+, Fedora 36+, Arch and the other distributions
+that are as new. The settings, game lists and media are kept in `~/EmuSPLASH`.
+
+The emulators are set up by yourself, in each emulator: BIOS files, firmware and keys, the
+controllers, fullscreen and the graphics, and the cores of RetroArch (Online Updater, Core
+Downloader).
+
 ## What EmuSPLASH adds
 
 * Iconic as the default theme. The theme downloader still finds the other themes.

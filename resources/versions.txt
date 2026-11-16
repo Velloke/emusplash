@@ -2,6 +2,11 @@
 // "# name | date | title" starts a version, each "* " line is one change. A change goes on
 // over the next lines if they start with two spaces.
 
+# patch50 | 2026-11-16 | Download on the front page
+* README.md starts with the download of the AppImage: a button with the latest version and a
+  link that always gives the AppImage of the latest release, how to run it and what has to be
+  set up in the emulators.
+
 # patch48 | 2026-11-16 | Video previews build with FFmpeg 4
 * The previews of the media center (MediaThumbnails) build with FFmpeg 4 too (Ubuntu 22.04 of
   the AppImage), where av_find_best_stream gives a codec that isn't const.
