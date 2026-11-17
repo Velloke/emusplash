@@ -60,6 +60,20 @@ ViewController::ViewController() noexcept
     mState.previouslyViewed = ViewMode::NOTHING;
 }
 
+namespace
+{
+    // A ROM directory chosen in the dialog of no games gets the folders of the systems at once,
+    // as in Game settings > ROMS DIRECTORY (without pressing CREATE). The message tells it.
+    std::string makeSystemDirectories()
+    {
+        if (SystemData::createSystemDirectories())
+            return _("ROM DIRECTORY SETTING SAVED, BUT THE FOLDERS OF THE SYSTEMS COULDN'T BE "
+                     "MADE IN IT (PERMISSION PROBLEMS OR DISK FULL?), SEE THE LOG FILE");
+        return _("ROM DIRECTORY SETTING SAVED AND THE FOLDERS OF THE SYSTEMS MADE IN IT, "
+                 "PLACE YOUR GAMES THERE AND RESTART THE APPLICATION");
+    }
+} // namespace
+
 ViewController* ViewController::getInstance()
 {
     static ViewController instance;
@@ -305,8 +319,7 @@ void ViewController::noGamesDialog()
 #endif
                             mNoGamesMessageBox->changeText(mNoGamesErrorMessage + mRomDirectory);
                             mWindow->pushGui(new GuiMsgBox(
-                                _("ROM DIRECTORY SETTING SAVED, RESTART "
-                                  "THE APPLICATION TO RESCAN THE SYSTEMS"),
+                                makeSystemDirectories(),
                                 _("OK"), nullptr, "", nullptr, "", nullptr, "", nullptr, nullptr,
                                 true, true,
                                 (mRenderer->getIsVerticalOrientation() ?
@@ -333,8 +346,7 @@ void ViewController::noGamesDialog()
 #endif
                         mNoGamesMessageBox->changeText(mNoGamesErrorMessage + mRomDirectory);
                         mWindow->pushGui(new GuiMsgBox(
-                            _("ROM DIRECTORY SETTING SAVED, RESTART "
-                              "THE APPLICATION TO RESCAN THE SYSTEMS"),
+                            makeSystemDirectories(),
                             _("OK"), nullptr, "", nullptr, "", nullptr, "", nullptr, nullptr, true,
                             true,
                             (mRenderer->getIsVerticalOrientation() ?

@@ -2,6 +2,12 @@
 // "# name | date | title" starts a version, each "* " line is one change. A change goes on
 // over the next lines if they start with two spaces.
 
+# patch51 | 2026-11-17 | EmuSPLASH 1.0.1: the system folders with the first ROM directory
+* A ROM directory chosen in the dialog of no games (the first start) gets the folders of the
+  systems and systems.txt at once, as in Game settings > ROMS DIRECTORY. Before, they were made
+  only with the button CREATE, and a new user who chose a folder found it empty.
+* Version 1.0.1.
+
 # patch50 | 2026-11-16 | Download on the front page
 * README.md starts with the download of the AppImage: a button with the latest version and a
   link that always gives the AppImage of the latest release, how to run it and what has to be

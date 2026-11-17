@@ -12,16 +12,16 @@
 // clang-format off
 #define PROGRAM_VERSION_MAJOR        1
 #define PROGRAM_VERSION_MINOR        0
-#define PROGRAM_VERSION_MAINTENANCE  0
+#define PROGRAM_VERSION_MAINTENANCE  1
 // The release of the code this build is based on, the theme downloader compares it with the
 // release its theme list asks for (and the settings file keeps it).
 #define PROGRAM_RELEASE_NUMBER       53
 // clang-format on
-#define PROGRAM_VERSION_STRING "1.0.0"
+#define PROGRAM_VERSION_STRING "1.0.1"
 
 #define PROGRAM_BUILT_STRING __DATE__ " - " __TIME__
 
-#define RESOURCE_VERSION_STRING "1,0,0\0"
+#define RESOURCE_VERSION_STRING "1,0,1\0"
 #define RESOURCE_VERSION PROGRAM_VERSION_MAJOR, PROGRAM_VERSION_MINOR, PROGRAM_VERSION_MAINTENANCE
 
 #endif // ES_CORE_APPLICATION_VERSION_H
