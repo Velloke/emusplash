@@ -913,6 +913,23 @@ void Window::renderSplashScreen(SplashScreenState state, float progress)
     mRenderer->swapBuffers();
 }
 
+void Window::renderLaunchStatus(const std::string& text)
+{
+    glm::mat4 trans {mRenderer->getIdentity()};
+    mRenderer->setMatrix(trans);
+    mRenderer->drawRect(0.0f, 0.0f, mRenderer->getScreenWidth(), mRenderer->getScreenHeight(),
+                        0x000000FF, 0x000000FF);
+    mSplash->render(trans);
+    mRenderer->setMatrix(trans);
+
+    TextComponent status {text, Font::get(FONT_SIZE_MEDIUM), 0x999999FF};
+    trans = glm::translate(
+        trans, glm::round(glm::vec3 {(mRenderer->getScreenWidth() - status.getSize().x) / 2.0f,
+                                     mSplashTextPositions.y, 0.0f}));
+    status.render(trans);
+    mRenderer->swapBuffers();
+}
+
 void Window::renderListScrollOverlay(const float opacity, const std::string& text)
 {
     mListScrollOpacity = opacity * 0.6f;

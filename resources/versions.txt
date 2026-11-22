@@ -2,6 +2,51 @@
 // "# name | date | title" starts a version, each "* " line is one change. A change goes on
 // over the next lines if they start with two spaces.
 
+# patch56 | 2026-11-22 | Version 1.0.2
+* Version 1.0.2, with the Steam games of patch53 to patch55.
+
+# patch55 | 2026-11-21 | Steam and the launchers kept in the background
+* While a Steam game starts and while what's left of it is closed after it, the windows of
+  Steam and the launchers (Ubisoft Connect, the EA app ...) are minimized and EmuSPLASH is
+  kept in front with its status line, also when one of them takes the focus. Only the game
+  itself comes in front. When the game ends, EmuSPLASH comes in front at once, not after
+  the 13 s. What was minimized is written into es_log.txt ("Steam game: ...").
+
+# patch54 | 2026-11-21 | The Steam game found by its folder
+* The game itself is the process whose program is in steamapps/common (S:\steamapps\common\...
+  in Proton), not Proton or Steam's runtime there. Size doesn't matter anymore: Ubisoft Connect
+  is big too. Steam's reaper ending doesn't mean the game has ended (with Ubisoft games it ends
+  after a few seconds), so what's left isn't closed while the game is starting.
+* The window of the game is also found when Steam is a Flatpak.
+
+# patch53 | 2026-11-19 | Steam games found by their AppId, a status screen while they start
+* The processes of a Steam game are found by the AppId Steam gives them (SteamAppId=ID in their
+  environment), also Proton and launchers like Ubisoft Connect that aren't under Steam's reaper.
+  The game is the biggest of them (over 500 MB). 13 s after it has ended, all that's left of it
+  is ended (asked first, then killed); Steam itself stays.
+* What's left of an earlier start of the game is ended before it's started again, so Steam
+  doesn't say "Game already running".
+* The close game hotkey ends all processes of the Steam game.
+* While a Steam game starts, EmuSPLASH stays above Steam and the launchers and shows what is
+  going on: STEAM IS STARTING IN THE BACKGROUND..., UBISOFT CONNECT IS STARTING IN THE
+  BACKGROUND..., STARTING <GAME>... When the game runs, its window is brought to the front.
+
+# patch52 | 2026-11-19 | The first start step by step, Steam games waited for
+* The first start goes step by step: the notice about setting up the emulators, then the dialog
+  of no games, CHANGE chooses the ROM directory with the folder browser (no path to type) and
+  makes the folders of the systems in it, then the question about the folder of the emulator
+  AppImages, and at the end OK closes EmuSPLASH, to be started again with the games in place.
+  The button CREATE is gone (CHANGE does it).
+* The notice of the first start also says that games started through Steam, Ubisoft Connect or
+  another launcher have to open by themselves, without a question or an error in between.
+* Steam games (steam://rungameid/ID in a .desktop file) are waited for:
+  resources/launchers/steam_game.sh starts them and follows the game under Steam's reaper.
+  EmuSPLASH stays in front while it starts, the close game hotkey ends it, and launchers left
+  open after the game (Ubisoft Connect, the EA app ...) are closed 15 s after it ended. Steam
+  itself stays open. The steps are in ~/EmuSPLASH/logs/steam_games.log.
+* After a game EmuSPLASH brings its window to the front (X11), so a game that ended through a
+  launcher doesn't leave the desktop in front.
+
 # patch51 | 2026-11-17 | EmuSPLASH 1.0.1: the system folders with the first ROM directory
 * A ROM directory chosen in the dialog of no games (the first start) gets the folders of the
   systems and systems.txt at once, as in Game settings > ROMS DIRECTORY. Before, they were made

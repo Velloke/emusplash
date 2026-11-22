@@ -45,6 +45,9 @@ namespace Utils
         // Called about every 10 ms while a game started by launchGameUnix() runs, with the
         // pipe the output of the game is read from (the processes of the game hold it).
         void setLaunchWatcher(const std::function<void(int)>& watcher);
+        // Called as often, for what the game screen shows while the game starts (the status
+        // of a Steam game).
+        void setLaunchTicker(const std::function<void()>& ticker);
 
         int launchGameUnix(const std::string& cmdUtf8,
                            const std::string& startDirectory,

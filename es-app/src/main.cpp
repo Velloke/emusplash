@@ -1270,15 +1270,7 @@ int main(int argc, char* argv[])
         if (Settings::getInstance()->getString("EmulatorDirectory").empty() &&
             !Settings::getInstance()->getBool("EmulatorDirectoryAsked") &&
             window->peekGui() == ViewController::getInstance()) {
-            window->pushGui(new GuiMsgBox(
-                "Do you keep the AppImages of your emulators in a folder? EmuSPLASH can find them "
-                "and add them to the systems they are for, also when new ones are added later. "
-                "The folder can be changed in Game settings, Custom emulators AppImages.",
-                "CHOOSE FOLDER", [] { GuiAlternativeEmulators::chooseEmulatorDirectory(nullptr); },
-                "NOT NOW", [] {
-                    Settings::getInstance()->setBool("EmulatorDirectoryAsked", true);
-                    Settings::getInstance()->saveFile();
-                }));
+            GuiAlternativeEmulators::askEmulatorDirectory(nullptr);
         }
 
         // Once, at the first start: the emulators are set up by the user. Shown over the
@@ -1289,7 +1281,10 @@ int main(int argc, char* argv[])
                 "the emulator: the BIOS files, firmware and keys, the controllers, fullscreen and "
                 "the graphics. RetroArch also needs its cores (in RetroArch: Online Updater, Core "
                 "Downloader).\n\nEmuSPLASH only writes the hotkeys and the settings of Game "
-                "settings, Emulator settings into the emulators.",
+                "settings, Emulator settings into the emulators.\n\nIf you start games through "
+                "Steam, Ubisoft Connect or another launcher, make sure they open the game by "
+                "themselves, without a question or an error in between (such as a failed cloud "
+                "sync).",
                 "OK", [] {
                     Settings::getInstance()->setBool("SetupNoticeShown", true);
                     Settings::getInstance()->saveFile();

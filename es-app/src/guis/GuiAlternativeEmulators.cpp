@@ -512,6 +512,29 @@ void GuiAlternativeEmulators::editEmulator(SystemData* system,
     mWindow->pushGui(s);
 }
 
+void GuiAlternativeEmulators::askEmulatorDirectory(const std::function<void()>& done)
+{
+    Window::getInstance()->pushGui(new GuiMsgBox(
+        "Do you keep the AppImages of your emulators in a folder? EmuSPLASH can find them "
+        "and add them to the systems they are for, also when new ones are added later. "
+        "The folder can be changed in Game settings, Custom emulators AppImages.",
+        "CHOOSE FOLDER", [done] { chooseEmulatorDirectory(done); }, "NOT NOW",
+        [done] {
+            Settings::getInstance()->setBool("EmulatorDirectoryAsked", true);
+            Settings::getInstance()->saveFile();
+            if (done)
+                done();
+        },
+        "", nullptr, "", nullptr,
+        // Back is NOT NOW too.
+        [done] {
+            Settings::getInstance()->setBool("EmulatorDirectoryAsked", true);
+            Settings::getInstance()->saveFile();
+            if (done)
+                done();
+        }));
+}
+
 void GuiAlternativeEmulators::chooseEmulatorDirectory(const std::function<void()>& done)
 {
     Window* window {Window::getInstance()};

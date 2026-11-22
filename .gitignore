@@ -129,3 +129,5 @@ CPackSourceConfig.cmake
 # VSCode
 .vscode/
 .continueignore
+*.orig
+*.rej

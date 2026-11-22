@@ -22,6 +22,9 @@ public:
 
     // Chooses the folder with the AppImages of emulators and looks through it.
     static void chooseEmulatorDirectory(const std::function<void()>& done);
+    // Asks once whether the AppImages of emulators are kept in a folder (CHOOSE FOLDER or
+    // NOT NOW), done afterwards either way (also when the folder browser is left).
+    static void askEmulatorDirectory(const std::function<void()>& done);
 
 private:
     void updateMenu(const std::string& systemName, const std::string& label, bool defaultEmulator);

@@ -118,6 +118,8 @@ public:
 
     void updateSplashScreenText();
     void renderSplashScreen(SplashScreenState state, float progress);
+    // The splash screen with a line of text, shown while a game starts through a launcher.
+    void renderLaunchStatus(const std::string& text);
     // The list scroll overlay is triggered from IList when the highest scrolling tier is reached.
     void renderListScrollOverlay(const float opacity, const std::string& text);
 

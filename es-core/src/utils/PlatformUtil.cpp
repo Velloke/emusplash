@@ -49,9 +49,11 @@ namespace Utils
         namespace
         {
             std::function<void(int)> sLaunchWatcher;
+            std::function<void()> sLaunchTicker;
         } // namespace
 
         void setLaunchWatcher(const std::function<void(int)>& watcher) { sLaunchWatcher = watcher; }
+        void setLaunchTicker(const std::function<void()>& ticker) { sLaunchTicker = ticker; }
 
 #if defined(__linux__) && !defined(__ANDROID__)
         namespace
@@ -464,6 +466,8 @@ namespace Utils
                 }
                 if (sLaunchWatcher)
                     sLaunchWatcher(fd);
+                if (sLaunchTicker)
+                    sLaunchTicker();
             }
 
             returnValue = pclose(commandPipe);

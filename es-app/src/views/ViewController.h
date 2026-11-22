@@ -39,6 +39,10 @@ public:
     void unsafeUpgradeDialog();
     void invalidSystemsFileDialog();
     void noGamesDialog();
+#if !defined(__ANDROID__) && !defined(__IOS__)
+    // CHANGE of the dialog of no games: the ROM directory, its folders, the emulator folder.
+    void chooseFirstRomDirectory();
+#endif
     void invalidAlternativeEmulatorDialog();
 
     // Try to completely populate the GamelistView map.

@@ -24,6 +24,8 @@
 #include "emulators/EmulatorProfiles.h"
 #include "emulators/GameHotkeys.h"
 #include "Window.h"
+#include "renderers/Renderer.h"
+#include "resources/ResourceManager.h"
 #include "utils/FileSystemUtil.h"
 #include "utils/PlatformUtil.h"
 #include "utils/TimeUtil.h"
@@ -34,8 +36,16 @@
 #include "utils/PlatformUtilAndroid.h"
 #endif
 
+#include <SDL2/SDL.h>
 #include <assert.h>
+#if defined(__linux__)
+#include <dlfcn.h>
+#include <unistd.h>
+#endif
 #include <regex>
+#include <set>
+#include <sstream>
+#include <vector>
 
 #include <algorithm>
 #include <chrono>
@@ -378,6 +388,415 @@ namespace
             return "";
         return Utils::String::trim(exec.substr(words[program + 1].first));
     }
+
+#if defined(__linux__) && !defined(__ANDROID__)
+    // The window manager of X11 is asked for things as a pager would ask for them (KDE and the
+    // others don't let a program take the focus itself). libX11 is opened when needed, so
+    // EmuSPLASH doesn't depend on it, and nothing is done on Wayland.
+    class WindowManager
+    {
+    public:
+        using XID = unsigned long;
+
+        WindowManager()
+        {
+            static void* x11 {dlopen("libX11.so.6", RTLD_NOW | RTLD_LOCAL)};
+            if (x11 == nullptr || std::getenv("DISPLAY") == nullptr)
+                return;
+            mOpenDisplay = reinterpret_cast<void* (*)(const char*)>(dlsym(x11, "XOpenDisplay"));
+            mCloseDisplay = reinterpret_cast<int (*)(void*)>(dlsym(x11, "XCloseDisplay"));
+            mRootWindow = reinterpret_cast<XID (*)(void*)>(dlsym(x11, "XDefaultRootWindow"));
+            mInternAtom =
+                reinterpret_cast<XID (*)(void*, const char*, int)>(dlsym(x11, "XInternAtom"));
+            mGetProperty = reinterpret_cast<int (*)(
+                void*, XID, XID, long, long, int, XID, XID*, int*, unsigned long*,
+                unsigned long*, unsigned char**)>(dlsym(x11, "XGetWindowProperty"));
+            mFree = reinterpret_cast<int (*)(void*)>(dlsym(x11, "XFree"));
+            mSendEvent = reinterpret_cast<int (*)(void*, XID, int, long, Event*)>(
+                dlsym(x11, "XSendEvent"));
+            mLowerWindow = reinterpret_cast<int (*)(void*, XID)>(dlsym(x11, "XLowerWindow"));
+            mIconifyWindow =
+                reinterpret_cast<int (*)(void*, XID, int)>(dlsym(x11, "XIconifyWindow"));
+            mDefaultScreen = reinterpret_cast<int (*)(void*)>(dlsym(x11, "XDefaultScreen"));
+            mFlush = reinterpret_cast<int (*)(void*)>(dlsym(x11, "XFlush"));
+            if (!mOpenDisplay || !mCloseDisplay || !mRootWindow || !mInternAtom ||
+                !mGetProperty || !mFree || !mSendEvent || !mLowerWindow || !mIconifyWindow || !mDefaultScreen || !mFlush)
+                return;
+            mDisplay = mOpenDisplay(nullptr);
+        }
+        ~WindowManager()
+        {
+            if (mDisplay != nullptr)
+                mCloseDisplay(mDisplay);
+        }
+
+        // The windows of the window manager (_NET_CLIENT_LIST).
+        std::vector<XID> clientWindows()
+        {
+            std::vector<XID> result;
+            if (mDisplay == nullptr)
+                return result;
+            unsigned char* value {nullptr};
+            unsigned long count {0};
+            // XA_WINDOW is 33.
+            if (property(mRootWindow(mDisplay), "_NET_CLIENT_LIST", 33, 4096, value, count)) {
+                const XID* list {reinterpret_cast<const XID*>(value)};
+                result.assign(list, list + count);
+                mFree(value);
+            }
+            return result;
+        }
+
+        // The first window of a process, 0 if it has none.
+        XID windowOf(long pid)
+        {
+            for (const XID window : clientWindows()) {
+                unsigned char* value {nullptr};
+                unsigned long count {0};
+                // XA_CARDINAL is 6.
+                if (property(window, "_NET_WM_PID", 6, 1, value, count)) {
+                    const bool found {count == 1 && *reinterpret_cast<const long*>(value) == pid};
+                    mFree(value);
+                    if (found)
+                        return window;
+                }
+            }
+            return 0;
+        }
+
+        // The window that has the focus, 0 if none.
+        XID activeWindow()
+        {
+            XID active {0};
+            unsigned char* value {nullptr};
+            unsigned long count {0};
+            if (mDisplay != nullptr &&
+                property(mRootWindow(mDisplay), "_NET_ACTIVE_WINDOW", 33, 1, value, count)) {
+                if (count == 1)
+                    active = *reinterpret_cast<const XID*>(value);
+                mFree(value);
+            }
+            return active;
+        }
+
+        // WM_CLASS of a window, both its parts ("instance class"), in lowercase.
+        std::string windowClass(XID window)
+        {
+            std::string result;
+            unsigned char* value {nullptr};
+            unsigned long count {0};
+            // XA_STRING is 31.
+            if (property(window, "WM_CLASS", 31, 256, value, count)) {
+                result.assign(reinterpret_cast<const char*>(value), count);
+                mFree(value);
+                std::replace(result.begin(), result.end(), '\0', ' ');
+            }
+            return Utils::String::toLower(result);
+        }
+
+        // Whether a window is minimized.
+        bool isHidden(XID window)
+        {
+            bool hidden {false};
+            unsigned char* value {nullptr};
+            unsigned long count {0};
+            // XA_ATOM is 4.
+            if (property(window, "_NET_WM_STATE", 4, 64, value, count)) {
+                const XID hiddenState {mInternAtom(mDisplay, "_NET_WM_STATE_HIDDEN", 0)};
+                const XID* states {reinterpret_cast<const XID*>(value)};
+                hidden = std::find(states, states + count, hiddenState) != states + count;
+                mFree(value);
+            }
+            return hidden;
+        }
+
+        void minimize(XID window)
+        {
+            if (mDisplay == nullptr || window == 0)
+                return;
+            mIconifyWindow(mDisplay, window, mDefaultScreen(mDisplay));
+            mFlush(mDisplay);
+        }
+
+        XID ourWindow() { return windowOf(static_cast<long>(getpid())); }
+
+        // Brings a window to the front and gives it the focus.
+        void activate(XID window)
+        {
+            const long data[5] {2, 0, 0, 0, 0}; // 2: as a pager asks for it.
+            message(window, "_NET_ACTIVE_WINDOW", data);
+        }
+
+        // Keeps a window above the others, or not.
+        void keepAbove(XID window, bool above)
+        {
+            if (mDisplay == nullptr)
+                return;
+            const long data[5] {above ? 1 : 0,
+                                static_cast<long>(mInternAtom(mDisplay, "_NET_WM_STATE_ABOVE", 0)),
+                                0, 2, 0};
+            message(window, "_NET_WM_STATE", data);
+        }
+
+        void lower(XID window)
+        {
+            if (mDisplay == nullptr || window == 0)
+                return;
+            mLowerWindow(mDisplay, window);
+            mFlush(mDisplay);
+        }
+
+    private:
+        struct ClientMessage {
+            int type;
+            unsigned long serial;
+            int sendEvent;
+            void* display;
+            XID window;
+            XID messageType;
+            int format;
+            long data[5];
+        };
+        union Event {
+            ClientMessage message;
+            long pad[24];
+        };
+
+        bool property(XID window,
+                      const char* name,
+                      XID type,
+                      long length,
+                      unsigned char*& value,
+                      unsigned long& count)
+        {
+            XID actualType {0};
+            int format {0};
+            unsigned long after {0};
+            value = nullptr;
+            count = 0;
+            if (mGetProperty(mDisplay, window, mInternAtom(mDisplay, name, 0), 0, length, 0,
+                             type, &actualType, &format, &count, &after, &value) != 0)
+                return false;
+            if (value != nullptr && count == 0) {
+                mFree(value);
+                value = nullptr;
+            }
+            return value != nullptr;
+        }
+
+        void message(XID window, const char* type, const long (&data)[5])
+        {
+            if (mDisplay == nullptr || window == 0)
+                return;
+            Event event {};
+            event.message.type = 33; // ClientMessage
+            event.message.sendEvent = 1;
+            event.message.display = mDisplay;
+            event.message.window = window;
+            event.message.messageType = mInternAtom(mDisplay, type, 0);
+            event.message.format = 32;
+            for (int i {0}; i < 5; ++i)
+                event.message.data[i] = data[i];
+            // SubstructureRedirectMask | SubstructureNotifyMask
+            mSendEvent(mDisplay, mRootWindow(mDisplay), 0, (1L << 20) | (1L << 19), &event);
+            mFlush(mDisplay);
+        }
+
+        void* mDisplay {nullptr};
+        void* (*mOpenDisplay)(const char*) {nullptr};
+        int (*mCloseDisplay)(void*) {nullptr};
+        XID (*mRootWindow)(void*) {nullptr};
+        XID (*mInternAtom)(void*, const char*, int) {nullptr};
+        int (*mGetProperty)(void*, XID, XID, long, long, int, XID, XID*, int*, unsigned long*,
+                            unsigned long*, unsigned char**) {nullptr};
+        int (*mFree)(void*) {nullptr};
+        int (*mSendEvent)(void*, XID, int, long, Event*) {nullptr};
+        int (*mLowerWindow)(void*, XID) {nullptr};
+        int (*mIconifyWindow)(void*, XID, int) {nullptr};
+        int (*mDefaultScreen)(void*) {nullptr};
+        int (*mFlush)(void*) {nullptr};
+    };
+
+    // Brings the window of EmuSPLASH to the front after a game. A game started through a
+    // launcher (Steam) leaves the desktop in front otherwise.
+    void raiseWindowOfEmuSplash()
+    {
+        if (SDL_Window* sdlWindow {Renderer::getInstance()->getSDLWindow()})
+            SDL_RaiseWindow(sdlWindow);
+        WindowManager windowManager;
+        const WindowManager::XID ours {windowManager.ourWindow()};
+        if (ours == 0)
+            return;
+        windowManager.keepAbove(ours, false);
+        windowManager.activate(ours);
+        LOG(LogDebug) << "FileData::launchGame(): Brought the window to the front";
+    }
+
+    // While a Steam game starts and while what's left of it is closed after it, EmuSPLASH stays
+    // in front and shows what steam_game.sh writes into the status file, and the windows of
+    // Steam and the launchers (Ubisoft Connect ...) are minimized. When the script writes
+    // "GAME pid ...", the game runs: its window is brought to the front (if it isn't found in
+    // 10 s, EmuSPLASH goes behind).
+    class SteamLaunchScreen
+    {
+    public:
+        explicit SteamLaunchScreen(const std::string& statusFile)
+            : mStatusFile {statusFile}
+        {
+            Utils::FileSystem::removeFile(mStatusFile);
+            WindowManager windowManager;
+            mOurWindow = windowManager.ourWindow();
+            if (mOurWindow == 0) {
+                LOG(LogWarning) << "Steam game: the window of EmuSPLASH wasn't found (no X11?), "
+                                   "it can't be kept in front";
+            }
+            windowManager.keepAbove(mOurWindow, true);
+            windowManager.activate(mOurWindow);
+        }
+
+        // Called about every 10 ms while the game runs.
+        void tick()
+        {
+            const auto now {std::chrono::steady_clock::now()};
+            if (now - mLastTick < std::chrono::milliseconds(250))
+                return;
+            mLastTick = now;
+
+            std::string status;
+            std::ifstream file {mStatusFile};
+            std::getline(file, status);
+            status = Utils::String::trim(status);
+
+            if (status.rfind("GAME", 0) == 0) {
+                runningGame(status, now);
+                return;
+            }
+            if (mGameSince != std::chrono::steady_clock::time_point {}) {
+                // The game has ended (or starts again): EmuSPLASH in front while the rest of
+                // it is closed.
+                mGameSince = {};
+                mGameInFront = false;
+                mShown.clear();
+                LOG(LogInfo) << "Steam game: the game has ended, EmuSPLASH is in front again";
+            }
+            keepInFront();
+
+            if (status.empty())
+                status = _("Starting the game...");
+            // Drawn again now and then, the window manager may have drawn over it.
+            if (status == mShown && now - mLastRender < std::chrono::seconds(1))
+                return;
+            mShown = status;
+            mLastRender = now;
+            Window::getInstance()->renderLaunchStatus(Utils::String::toUpper(status));
+        }
+
+        ~SteamLaunchScreen()
+        {
+            Utils::FileSystem::removeFile(mStatusFile);
+            WindowManager windowManager;
+            windowManager.keepAbove(mOurWindow, false);
+        }
+
+    private:
+        // Steam's and the launchers' windows, by WM_CLASS. The windows of Proton games are
+        // steam_app_ID, those are left alone.
+        static bool isLauncherWindow(const std::string& windowClass)
+        {
+            if (windowClass.find("steam_app_") != std::string::npos ||
+                windowClass.find("steam_proton") != std::string::npos)
+                return false;
+            for (const char* name : {"steam", "upc.exe", "ubisoft", "uplay", "eadesktop",
+                                     "ealauncher", "epicgames", "rockstar", "battle.net",
+                                     "galaxyclient"}) {
+                if (windowClass.find(name) != std::string::npos)
+                    return true;
+            }
+            return false;
+        }
+
+        void keepInFront()
+        {
+            WindowManager windowManager;
+            for (const WindowManager::XID window : windowManager.clientWindows()) {
+                if (window == mOurWindow || windowManager.isHidden(window))
+                    continue;
+                const std::string windowClass {windowManager.windowClass(window)};
+                if (isLauncherWindow(windowClass)) {
+                    windowManager.minimize(window);
+                    if (mMinimized.insert(window).second) {
+                        LOG(LogInfo) << "Steam game: minimized the window of \""
+                                     << Utils::String::trim(windowClass) << "\"";
+                    }
+                }
+            }
+            if (mOurWindow != 0 && windowManager.activeWindow() != mOurWindow) {
+                if (SDL_Window* sdlWindow {Renderer::getInstance()->getSDLWindow()}) {
+                    SDL_RestoreWindow(sdlWindow);
+                    SDL_RaiseWindow(sdlWindow);
+                }
+                windowManager.keepAbove(mOurWindow, true);
+                windowManager.activate(mOurWindow);
+            }
+        }
+
+        void runningGame(const std::string& status,
+                         const std::chrono::steady_clock::time_point& now)
+        {
+            WindowManager windowManager;
+            if (mGameSince == std::chrono::steady_clock::time_point {}) {
+                mGameSince = now;
+                windowManager.keepAbove(mOurWindow, false);
+                LOG(LogInfo) << "Steam game: the game is running, it's let in front";
+            }
+            if (mGameInFront)
+                return;
+            // "GAME pid pid-in-its-flatpak", the window has one of them.
+            WindowManager::XID game {0};
+            std::istringstream pids {status.substr(4)};
+            long pid {0};
+            while (game == 0 && pids >> pid)
+                game = pid > 0 ? windowManager.windowOf(pid) : 0;
+            if (game != 0) {
+                windowManager.activate(game);
+                mGameInFront = true;
+            }
+            else if (now - mGameSince > std::chrono::seconds(10)) {
+                LOG(LogInfo) << "Steam game: the window of the game wasn't found, EmuSPLASH "
+                                "goes behind";
+                windowManager.lower(mOurWindow);
+                mGameInFront = true;
+            }
+        }
+
+        std::string mStatusFile;
+        WindowManager::XID mOurWindow {0};
+        std::set<WindowManager::XID> mMinimized;
+        std::string mShown;
+        std::chrono::steady_clock::time_point mLastTick;
+        std::chrono::steady_clock::time_point mLastRender;
+        std::chrono::steady_clock::time_point mGameSince;
+        bool mGameInFront {false};
+    };
+
+    // Puts a text between '' for the shell.
+    std::string shellQuoted(const std::string& text)
+    {
+        return "'" + Utils::String::replace(text, "'", "'\\''") + "'";
+    }
+
+    // A Steam game (steam://rungameid/ID or -applaunch ID) is started through
+    // resources/launchers/steam_game.sh, which waits for the game, see there. 0 if it isn't one.
+    std::string steamGameId(const std::string& command)
+    {
+        static const std::regex pattern {
+            R"((?:steam://(?:rungameid|run)/|-applaunch\s+)([0-9]+))"};
+        std::smatch match;
+        if (std::regex_search(command, match, pattern))
+            return match[1].str();
+        return "";
+    }
+#endif
 } // namespace
 
 FileData::FileData(FileType type,
@@ -2786,6 +3205,32 @@ void FileData::launchGame(const std::vector<std::string>& triedLabels)
     }
 #endif
 
+#if defined(__linux__)
+    // "steam steam://rungameid/ID" ends at once when Steam is running, so EmuSPLASH didn't wait
+    // for the game: the script waits for it, the close game hotkey ends it through the script,
+    // and what's left of the game (Ubisoft Connect ...) is closed 13 s after it.
+    std::unique_ptr<SteamLaunchScreen> steamLaunchScreen;
+    if (!runInBackground) {
+        const std::string steamId {steamGameId(command)};
+        const std::string script {
+            ResourceManager::getInstance().getResourcePath(":/launchers/steam_game.sh", false)};
+        if (!steamId.empty() && !script.empty()) {
+            const std::string logs {Utils::FileSystem::getAppDataDirectory() + "/logs"};
+            const std::string launchLog {logs + "/steam_games.log"};
+            const std::string statusFile {logs + "/steam_game.status"};
+            command = "EMUSPLASH_LAUNCH_LOG=" + shellQuoted(launchLog) +
+                      " EMUSPLASH_LAUNCH_STATUS=" + shellQuoted(statusFile) +
+                      " EMUSPLASH_GAME_NAME=" + shellQuoted(getName()) + " bash " +
+                      shellQuoted(script) + " " + steamId + " " + command;
+            LOG(LogInfo) << "Steam game " << steamId << ", EmuSPLASH waits for it (" << launchLog
+                         << ")";
+            steamLaunchScreen = std::make_unique<SteamLaunchScreen>(statusFile);
+            SteamLaunchScreen* screen {steamLaunchScreen.get()};
+            Utils::Platform::setLaunchTicker([screen] { screen->tick(); });
+        }
+    }
+#endif
+
 #if !defined(__APPLE__)
     // The hotkeys of Input device settings > HOTKEYS: written into the settings of the
     // emulator, and watched while the game runs. RetroArch gets the settings of EmuSPLASH.
@@ -2817,6 +3262,12 @@ returnValue = Utils::Platform::launchGameUnix(command, startDirectory, runInBack
 #endif
 #if !defined(__APPLE__)
     GameHotkeys::end();
+#endif
+#if defined(__linux__)
+    Utils::Platform::setLaunchTicker(nullptr);
+    steamLaunchScreen.reset();
+    if (!runInBackground)
+        raiseWindowOfEmuSplash();
 #endif
 
 #endif

@@ -27,6 +27,8 @@
 #include "animations/Animation.h"
 #include "animations/LambdaAnimation.h"
 #include "animations/MoveCameraAnimation.h"
+#include "guis/GuiAlternativeEmulators.h"
+#include "guis/GuiFileBrowser.h"
 #include "guis/GuiGameImporter.h"
 #include "guis/GuiMenu.h"
 #include "guis/GuiTextEditKeyboardPopup.h"
@@ -59,20 +61,6 @@ ViewController::ViewController() noexcept
     mState.viewing = ViewMode::NOTHING;
     mState.previouslyViewed = ViewMode::NOTHING;
 }
-
-namespace
-{
-    // A ROM directory chosen in the dialog of no games gets the folders of the systems at once,
-    // as in Game settings > ROMS DIRECTORY (without pressing CREATE). The message tells it.
-    std::string makeSystemDirectories()
-    {
-        if (SystemData::createSystemDirectories())
-            return _("ROM DIRECTORY SETTING SAVED, BUT THE FOLDERS OF THE SYSTEMS COULDN'T BE "
-                     "MADE IN IT (PERMISSION PROBLEMS OR DISK FULL?), SEE THE LOG FILE");
-        return _("ROM DIRECTORY SETTING SAVED AND THE FOLDERS OF THE SYSTEMS MADE IN IT, "
-                 "PLACE YOUR GAMES THERE AND RESTART THE APPLICATION");
-    }
-} // namespace
 
 ViewController* ViewController::getInstance()
 {
@@ -263,13 +251,10 @@ void ViewController::noGamesDialog()
                              "SOME INFORMATION SUCH AS THE SUPPORTED FILE EXTENSIONS. "
                              "THIS IS THE CONFIGURED ROM DIRECTORY:\n");
 #else
-    mNoGamesErrorMessage = _("NO GAME FILES WERE FOUND. EITHER IMPORT SOME GAMES OR "
-                             "PLACE THEM MANUALLY IN THE CURRENTLY CONFIGURED ROM "
-                             "DIRECTORY. YOU CAN ALSO CHANGE THE ROM PATH AND "
-                             "OPTIONALLY GENERATE THE ROM DIRECTORY STRUCTURE "
-                             "WHICH WILL CREATE A TEXT FILE FOR EACH SYSTEM PROVIDING "
-                             "SOME INFORMATION SUCH AS THE SUPPORTED FILE EXTENSIONS. "
-                             "THIS IS THE CONFIGURED ROM DIRECTORY:\n");
+    mNoGamesErrorMessage = _("NO GAME FILES WERE FOUND. EITHER IMPORT SOME GAMES, OR CHOOSE "
+                             "THE ROM DIRECTORY WITH CHANGE: THE FOLDERS OF THE SYSTEMS ARE "
+                             "MADE IN IT, EACH WITH A TEXT FILE OF ITS SUPPORTED FILE "
+                             "EXTENSIONS. THIS IS THE CONFIGURED ROM DIRECTORY:\n");
 #endif
 
 #if defined(_WIN64)
@@ -289,76 +274,6 @@ void ViewController::noGamesDialog()
         [this, gameImporterUpdateFunc] {
             mWindow->pushGui(new GuiGameImporter(_("GAME IMPORTER"), gameImporterUpdateFunc));
         },
-#else
-    mNoGamesMessageBox = new GuiMsgBox(
-        mNoGamesErrorMessage + mRomDirectory, _("IMPORT"),
-        [this, gameImporterUpdateFunc] {
-            mWindow->pushGui(new GuiGameImporter(_("GAME IMPORTER"), gameImporterUpdateFunc));
-        },
-        _("CHANGE"),
-        [this] {
-            std::string currentROMDirectory;
-#if defined(_WIN64)
-            currentROMDirectory = Utils::String::replace(FileData::getROMDirectory(), "/", "\\");
-#else
-            currentROMDirectory = FileData::getROMDirectory();
-#endif
-            if (Settings::getInstance()->getBool("VirtualKeyboard")) {
-                mWindow->pushGui(new GuiTextEditKeyboardPopup(
-                    0.0f, _("ENTER ROM DIRECTORY PATH"), currentROMDirectory,
-                    [this, currentROMDirectory](const std::string& newROMDirectory) {
-                        if (currentROMDirectory != newROMDirectory) {
-                            Settings::getInstance()->setString(
-                                "ROMDirectory", Utils::String::trim(newROMDirectory));
-                            Settings::getInstance()->saveFile();
-#if defined(_WIN64)
-                            mRomDirectory =
-                                Utils::String::replace(FileData::getROMDirectory(), "/", "\\");
-#else
-                            mRomDirectory = FileData::getROMDirectory();
-#endif
-                            mNoGamesMessageBox->changeText(mNoGamesErrorMessage + mRomDirectory);
-                            mWindow->pushGui(new GuiMsgBox(
-                                makeSystemDirectories(),
-                                _("OK"), nullptr, "", nullptr, "", nullptr, "", nullptr, nullptr,
-                                true, true,
-                                (mRenderer->getIsVerticalOrientation() ?
-                                     0.66f :
-                                     0.42f * (1.778f / mRenderer->getScreenAspectRatio()))));
-                        }
-                    },
-                    false, _("SAVE"), _("SAVE CHANGES?"), _("Currently configured path:"),
-                    currentROMDirectory, _("LOAD CURRENTLY CONFIGURED PATH"),
-                    _("CLEAR (LEAVE BLANK TO RESET TO DEFAULT PATH)")));
-            }
-            else {
-                mWindow->pushGui(new GuiTextEditPopup(
-                    _("ENTER ROM DIRECTORY PATH"), currentROMDirectory,
-                    [this](const std::string& newROMDirectory) {
-                        Settings::getInstance()->setString("ROMDirectory",
-                                                           Utils::String::trim(newROMDirectory));
-                        Settings::getInstance()->saveFile();
-#if defined(_WIN64)
-                        mRomDirectory =
-                            Utils::String::replace(FileData::getROMDirectory(), "/", "\\");
-#else
-                        mRomDirectory = FileData::getROMDirectory();
-#endif
-                        mNoGamesMessageBox->changeText(mNoGamesErrorMessage + mRomDirectory);
-                        mWindow->pushGui(new GuiMsgBox(
-                            makeSystemDirectories(),
-                            _("OK"), nullptr, "", nullptr, "", nullptr, "", nullptr, nullptr, true,
-                            true,
-                            (mRenderer->getIsVerticalOrientation() ?
-                                 0.66f :
-                                 0.42f * (1.778f / mRenderer->getScreenAspectRatio()))));
-                    },
-                    false, _("SAVE"), _("SAVE CHANGES?"), _("Currently configured path:"),
-                    currentROMDirectory, _("LOAD CURRENTLY CONFIGURED PATH"),
-                    _("CLEAR (LEAVE BLANK TO RESET TO DEFAULT PATH)")));
-            }
-        },
-#endif // __ANDROID__
         _("CREATE"),
         [this] {
             mWindow->pushGui(new GuiMsgBox(
@@ -402,13 +317,26 @@ void ViewController::noGamesDialog()
             quit.type = SDL_QUIT;
             SDL_PushEvent(&quit);
         },
-#if defined(__ANDROID__) || defined(__IOS__)
         "", nullptr, nullptr, true, false,
         (mRenderer->getIsVerticalOrientation() ?
              0.90f :
              0.58f * (1.778f / mRenderer->getScreenAspectRatio())));
 #else
-        nullptr, true, false,
+    // CHANGE chooses the ROM directory with the folder browser and makes the folders of the
+    // systems in it at once (no CREATE), then asks once for the folder of the emulator
+    // AppImages. At the end EmuSPLASH closes, to be started again with the games in place.
+    mNoGamesMessageBox = new GuiMsgBox(
+        mNoGamesErrorMessage + mRomDirectory, _("IMPORT"),
+        [this, gameImporterUpdateFunc] {
+            mWindow->pushGui(new GuiGameImporter(_("GAME IMPORTER"), gameImporterUpdateFunc));
+        },
+        _("CHANGE"), [this] { chooseFirstRomDirectory(); }, _("QUIT"),
+        [] {
+            SDL_Event quit {};
+            quit.type = SDL_QUIT;
+            SDL_PushEvent(&quit);
+        },
+        "", nullptr, nullptr, true, false,
         (mRenderer->getIsVerticalOrientation() ?
              0.90f :
              0.62f * (1.778f / mRenderer->getScreenAspectRatio())));
@@ -416,6 +344,53 @@ void ViewController::noGamesDialog()
 
     mWindow->pushGui(mNoGamesMessageBox);
 }
+
+#if !defined(__ANDROID__) && !defined(__IOS__)
+void ViewController::chooseFirstRomDirectory()
+{
+    std::string current {Utils::FileSystem::expandHomePath(FileData::getROMDirectory())};
+    if (!Utils::FileSystem::isDirectory(current))
+        current = Utils::FileSystem::getHomePath();
+    mWindow->pushGui(new GuiFileBrowser(
+        _("ROMS DIRECTORY"), current,
+        [this](const std::string& path) {
+            Settings::getInstance()->setString("ROMDirectory", path);
+            Settings::getInstance()->saveFile();
+            mRomDirectory = FileData::getROMDirectory();
+            mNoGamesMessageBox->changeText(mNoGamesErrorMessage + mRomDirectory);
+            const float width {mRenderer->getIsVerticalOrientation() ?
+                                   0.66f :
+                                   0.42f * (1.778f / mRenderer->getScreenAspectRatio())};
+            if (SystemData::createSystemDirectories()) {
+                mWindow->pushGui(new GuiMsgBox(
+                    _("ROM DIRECTORY SETTING SAVED, BUT THE FOLDERS OF THE SYSTEMS COULDN'T BE "
+                      "MADE IN IT (PERMISSION PROBLEMS OR DISK FULL?), SEE THE LOG FILE"),
+                    _("OK"), nullptr, "", nullptr, "", nullptr, "", nullptr, nullptr, true, true,
+                    width));
+                return;
+            }
+            // The last step: EmuSPLASH closes, the games are placed and it's started again.
+            auto finish = [this, width] {
+                mWindow->pushGui(new GuiMsgBox(
+                    _("ROM DIRECTORY SETTING SAVED AND THE FOLDERS OF THE SYSTEMS MADE IN IT, "
+                      "PLACE YOUR GAMES THERE AND START EMUSPLASH AGAIN"),
+                    _("OK"),
+                    [] {
+                        SDL_Event quit {};
+                        quit.type = SDL_QUIT;
+                        SDL_PushEvent(&quit);
+                    },
+                    "", nullptr, "", nullptr, "", nullptr, nullptr, true, true, width));
+            };
+            if (Settings::getInstance()->getString("EmulatorDirectory").empty() &&
+                !Settings::getInstance()->getBool("EmulatorDirectoryAsked"))
+                GuiAlternativeEmulators::askEmulatorDirectory(finish);
+            else
+                finish();
+        },
+        true));
+}
+#endif
 
 void ViewController::invalidAlternativeEmulatorDialog()
 {
