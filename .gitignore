@@ -18,6 +18,9 @@
 # Dependency makefiles
 *.d
 
+# FreeImage built into EmuSPLASH (when building in this folder)
+/freeimage-bundled/
+
 # Compiled executable
 /emusplash
 /dist/

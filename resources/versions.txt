@@ -2,6 +2,13 @@
 // "# name | date | title" starts a version, each "* " line is one change. A change goes on
 // over the next lines if they start with two spaces.
 
+# patch57 | 2026-11-24 | FreeImage built into EmuSPLASH
+* FreeImage 3.18 is built into EmuSPLASH on Linux (CMake/BundledFreeImage.cmake), the
+  libfreeimage of the system isn't needed anymore. Debian has dropped it from testing, and an
+  old one breaks when OpenEXR is updated ("symbol lookup error: libfreeimage.so.3"). Its
+  source is downloaded when building the first time. -DEMUSPLASH_BUNDLED_FREEIMAGE=OFF uses
+  the system's libfreeimage as before.
+
 # patch56 | 2026-11-22 | Version 1.0.2
 * Version 1.0.2, with the Steam games of patch53 to patch55.
 
